@@ -1,5 +1,5 @@
 import express from 'express';
-import { Player } from './Player2';
+import { Player } from './Player';
 
 const VERSION = "Non-Default anymore TypeScript folding player";
 
