@@ -30,8 +30,10 @@ type Card = {
 };
 
 export class Player {
+    // Track opponent aggression levels
     private opponentAggression: { [id: number]: number } = {};
 
+    // Bet request method
     public betRequest(
         gameState: GameState,
         betCallback: (bet: number) => void
@@ -43,7 +45,6 @@ export class Player {
             in_action,
             community_cards,
         } = gameState;
-
         const player = players[in_action];
         const playerBet = player.bet;
         const callAmount = current_buy_in - playerBet;
@@ -52,9 +53,9 @@ export class Player {
         const isPreFlop = community_cards.length === 0;
         const handStrength = evaluateHand(player.hole_cards, community_cards);
 
-        // Pre-flop strategy
+        // Adjust strategy based on pre-flop or post-flop
         if (isPreFlop) {
-            this.aggressivePreFlopStrategy(
+            this.preFlopStrategy(
                 handStrength,
                 callAmount,
                 minimum_raise,
@@ -65,48 +66,61 @@ export class Player {
                 handStrength,
                 callAmount,
                 minimum_raise,
-                community_cards,
                 betCallback
             );
         }
 
-        // Track opponent behavior
+        // Track opponent behavior after making decisions
         this.trackOpponentBehavior(players);
+
+        // Incorporate opponent-based strategy to adjust betting patterns
+        this.opponentBasedStrategy(
+            this.opponentAggression,
+            handStrength,
+            callAmount,
+            minimum_raise,
+            betCallback
+        );
     }
 
-    // Aggressive Pre-Flop Strategy
-    private aggressivePreFlopStrategy(
+    // Pre-flop strategy: Play tighter, raise more with strong hands
+    private preFlopStrategy(
         handStrength: number,
         callAmount: number,
         minimum_raise: number,
         betCallback: (bet: number) => void
     ): void {
         if (handStrength > 70) {
-            betCallback(callAmount + minimum_raise * 3); // Aggressive raise
+            // Raise aggressively with strong hands
+            betCallback(callAmount + minimum_raise * 2);
         } else if (handStrength > 40) {
-            betCallback(callAmount + minimum_raise); // Moderate raise
+            // Call with moderate hands
+            betCallback(callAmount);
         } else {
-            betCallback(0); // Fold weak hands
+            // Fold weak hands pre-flop
+            betCallback(0);
         }
     }
 
-    // Post-Flop Strategy
+    // Post-flop strategy: Adjust based on community cards and hand strength
     private postFlopStrategy(
         handStrength: number,
         callAmount: number,
         minimum_raise: number,
-        community_cards: Card[],
         betCallback: (bet: number) => void
     ): void {
-        // Example high-risk bluffing strategy based on community cards
-        const isBoardWet = this.isBoardWet(community_cards); // Determine if the board is coordinated
-
-        if (handStrength > 80 || (isBoardWet && handStrength > 50)) {
-            betCallback(callAmount + minimum_raise * 2); // Aggressive raise or bluff
+        if (handStrength > 80) {
+            // Strong hand post-flop, raise more
+            betCallback(callAmount + minimum_raise * 2);
         } else if (handStrength > 50) {
-            betCallback(callAmount + minimum_raise); // Consider calling
+            // Moderate hand, consider calling or small raise
+            betCallback(callAmount + minimum_raise);
+        } else if (handStrength > 20) {
+            // Weak hand, but maybe call if pot odds are favorable
+            betCallback(callAmount);
         } else {
-            betCallback(0); // Fold weak hands
+            // Very weak hand, fold
+            betCallback(0);
         }
     }
 
@@ -126,22 +140,71 @@ export class Player {
         });
     }
 
-    // Check if the board is wet (coordinated)
-    private isBoardWet(communityCards: Card[]): boolean {
-        const ranks = communityCards.map((card) => card.rank);
-        const uniqueRanks = new Set(ranks);
-        return uniqueRanks.size <= 3; // Simplified wet board condition
+    // Opponent-based strategy: Adjust betting decisions based on opponents' tendencies
+    private opponentBasedStrategy(
+        opponentAggression: { [id: number]: number },
+        handStrength: number,
+        callAmount: number,
+        minimum_raise: number,
+        betCallback: (bet: number) => void
+    ): void {
+        let aggressiveOpponents = 0;
+        let passiveOpponents = 0;
+
+        // Identify aggressive vs passive opponents
+        Object.keys(opponentAggression).forEach((opponentId) => {
+            if (opponentAggression[parseInt(opponentId)] > 3) {
+                aggressiveOpponents++;
+            } else if (opponentAggression[parseInt(opponentId)] < -3) {
+                passiveOpponents++;
+            }
+        });
+
+        // Adjust strategy based on opponent tendencies
+        if (aggressiveOpponents > passiveOpponents) {
+            // Against aggressive players, play tighter and raise less often unless holding a strong hand
+            if (handStrength > 70) {
+                betCallback(callAmount + minimum_raise * 2); // Strong hand, raise
+            } else if (handStrength > 40) {
+                betCallback(callAmount); // Moderate hand, just call
+            } else {
+                betCallback(0); // Weak hand, fold
+            }
+        } else if (passiveOpponents > aggressiveOpponents) {
+            // Against passive players, exploit by raising more often with moderate hands
+            if (handStrength > 50) {
+                betCallback(callAmount + minimum_raise); // Moderate hand, raise more often
+            } else {
+                betCallback(callAmount); // Weak hand, still call if passive opponents
+            }
+        } else {
+            // Default to the standard strategy if no clear aggressive/passive tendencies
+            if (handStrength > 70) {
+                betCallback(callAmount + minimum_raise * 2); // Strong hand, raise
+            } else if (handStrength > 40) {
+                betCallback(callAmount); // Moderate hand, call
+            } else {
+                betCallback(0); // Weak hand, fold
+            }
+        }
     }
 
     public showdown(gameState: GameState): void {
         const { players, in_action, community_cards } = gameState;
 
+        // Retrieve the hole cards of all players (available at showdown)
         players.forEach((player: PlayerData) => {
             if (player.status === 'active') {
                 console.log(
                     `Player ${player.name}'s hole cards:`,
                     player.hole_cards
                 );
+            }
+        });
+
+        // Evaluate hands for all players and print the results
+        players.forEach((player: PlayerData) => {
+            if (player.status === 'active') {
                 const handStrength = evaluateHand(
                     player.hole_cards,
                     community_cards
@@ -151,133 +214,146 @@ export class Player {
                 );
             }
         });
+
+        // We could add more complex strategies here for learning, but the method doesn't return anything
     }
 }
 
 // Example hand evaluator (simplified for demonstration)
+/**
+ * Evaluates the strength of a poker hand.
+ * @param holeCards - The player's hole cards.
+ * @param communityCards - The community cards on the table.
+ * @returns A numerical score representing the hand's strength.
+ */
 function evaluateHand(holeCards: Card[] = [], communityCards: Card[]): number {
     const allCards = [...holeCards, ...communityCards];
-    const rankCount = countRanks(allCards);
-    const suitCount = countSuits(allCards);
-    const isFlush = Object.values(suitCount).some((count) => count >= 5);
-    const isStraight = checkStraight(rankCount);
+    const ranks = allCards.map((card) => card.rank);
+    const suits = allCards.map((card) => card.suit);
 
-    const pairs = getPairs(rankCount);
-    const threeOfAKind = getThreeOfAKind(rankCount);
-    const fourOfAKind = getFourOfAKind(rankCount);
+    // Helper functions
+    const rankValues: { [key: string]: number } = {
+        '2': 2,
+        '3': 3,
+        '4': 4,
+        '5': 5,
+        '6': 6,
+        '7': 7,
+        '8': 8,
+        '9': 9,
+        '10': 10,
+        J: 11,
+        Q: 12,
+        K: 13,
+        A: 14,
+    };
 
-    if (isStraight && isFlush && rankCount.has('A') && rankCount.has('K')) {
-        return 100; // Royal Flush
-    }
-    if (isStraight && isFlush) {
-        return 90; // Straight Flush
-    }
-    if (fourOfAKind) {
-        return 80; // Four of a Kind
-    }
-    if (threeOfAKind && pairs.length > 0) {
-        return 70; // Full House
-    }
-    if (isFlush) {
-        return 60; // Flush
-    }
-    if (isStraight) {
-        return 50; // Straight
-    }
-    if (threeOfAKind) {
-        return 40; // Three of a Kind
-    }
-    if (pairs.length > 1) {
-        return 30; // Two Pair
-    }
-    if (pairs.length === 1) {
-        return 20; // One Pair
-    }
-    return 10; // High Card
-}
-
-// Helper function to count ranks
-function countRanks(cards: Card[]): Map<string, number> {
-    const rankCount = new Map<string, number>();
-    cards.forEach((card) => {
-        rankCount.set(card.rank, (rankCount.get(card.rank) || 0) + 1);
-    });
-    return rankCount;
-}
-
-// Helper function to count suits
-function countSuits(cards: Card[]): Map<string, number> {
-    const suitCount = new Map<string, number>();
-    cards.forEach((card) => {
-        suitCount.set(card.suit, (suitCount.get(card.suit) || 0) + 1);
-    });
-    return suitCount;
-}
-
-// Check for straight hand
-function checkStraight(rankCount: Map<string, number>): boolean {
-    const ranks = Array.from(rankCount.keys())
-        .map((rank) => getRankValue(rank))
+    const sortedRanks = ranks
+        .map((rank) => rankValues[rank])
         .sort((a, b) => a - b);
-    for (let i = 0; i < ranks.length - 4; i++) {
-        if (ranks[i + 4] - ranks[i] === 4) {
-            return true;
-        }
-    }
-    return false;
-}
 
-// Get the numerical value of card ranks
-function getRankValue(rank: string): number {
-    switch (rank) {
-        case '2':
-            return 2;
-        case '3':
-            return 3;
-        case '4':
-            return 4;
-        case '5':
+    const isFlush = (suits: string[]): boolean => {
+        const suitCount: { [suit: string]: number } = {};
+        suits.forEach((suit) => {
+            suitCount[suit] = (suitCount[suit] || 0) + 1;
+        });
+        return Object.values(suitCount).some((count) => count >= 5);
+    };
+
+    const isStraight = (sortedRanks: number[]): number => {
+        // Remove duplicates
+        const uniqueRanks = Array.from(new Set(sortedRanks));
+        for (let i = uniqueRanks.length - 1; i >= 4; i--) {
+            if (
+                uniqueRanks[i] === uniqueRanks[i - 1] + 1 &&
+                uniqueRanks[i - 1] === uniqueRanks[i - 2] + 1 &&
+                uniqueRanks[i - 2] === uniqueRanks[i - 3] + 1 &&
+                uniqueRanks[i - 3] === uniqueRanks[i - 4] + 1
+            ) {
+                return uniqueRanks[i];
+            }
+        }
+        // Special case: Ace-low straight (A-2-3-4-5)
+        if (
+            uniqueRanks.includes(14) &&
+            uniqueRanks.includes(2) &&
+            uniqueRanks.includes(3) &&
+            uniqueRanks.includes(4) &&
+            uniqueRanks.includes(5)
+        ) {
             return 5;
-        case '6':
-            return 6;
-        case '7':
-            return 7;
-        case '8':
-            return 8;
-        case '9':
-            return 9;
-        case '10':
-            return 10;
-        case 'J':
-            return 11;
-        case 'Q':
-            return 12;
-        case 'K':
-            return 13;
-        case 'A':
-            return 14; // Ace is high
-        default:
-            return 0;
-    }
-}
-
-// Get pairs from rank counts
-function getPairs(rankCount: Map<string, number>): string[] {
-    const pairs: string[] = [];
-    rankCount.forEach((count, rank) => {
-        if (count === 2) {
-            pairs.push(rank);
         }
-    });
-    return pairs;
+        return 0;
+    };
+
+    const countRanks = (ranks: string[]): { [rank: string]: number } => {
+        const rankCount: { [rank: string]: number } = {};
+        ranks.forEach((rank) => {
+            rankCount[rank] = (rankCount[rank] || 0) + 1;
+        });
+        return rankCount;
+    };
+
+    const flush = isFlush(suits);
+    const straightHighCard = isStraight(sortedRanks);
+    const rankCount = countRanks(ranks);
+    const counts = Object.values(rankCount).sort((a, b) => b - a); // Descending
+
+    // Determine hand type
+    let score = 0;
+
+    if (flush && straightHighCard >= 10) {
+        // Example: Straight Flush
+        score = 800 + straightHighCard;
+    } else if (counts[0] === 4) {
+        // Four of a Kind
+        score = 700 + rankValues[getKeyByValue(rankCount, 4)!];
+    } else if (counts[0] === 3 && counts[1] >= 2) {
+        // Full House
+        const threeKind = getKeyByValue(rankCount, 3)!;
+        const pair = getKeyByValue(rankCount, 2)!;
+        score = 600 + rankValues[threeKind] * 10 + rankValues[pair];
+    } else if (flush) {
+        // Flush
+        score = 500 + Math.max(...sortedRanks);
+    } else if (straightHighCard > 0) {
+        // Straight
+        score = 400 + straightHighCard;
+    } else if (counts[0] === 3) {
+        // Three of a Kind
+        const threeKind = getKeyByValue(rankCount, 3)!;
+        score = 300 + rankValues[threeKind];
+    } else if (counts[0] === 2 && counts[1] === 2) {
+        // Two Pair
+        const pairs = Object.keys(rankCount).filter(
+            (rank) => rankCount[rank] === 2
+        );
+        const highPair = Math.max(...pairs.map((rank) => rankValues[rank]));
+        const lowPair = Math.min(...pairs.map((rank) => rankValues[rank]));
+        score = 200 + highPair * 10 + lowPair;
+    } else if (counts[0] === 2) {
+        // One Pair
+        const pair = getKeyByValue(rankCount, 2)!;
+        score = 100 + rankValues[pair];
+    } else {
+        // High Card
+        score = Math.max(...sortedRanks);
+    }
+
+    return score;
 }
 
-// Check for three of a kind
-function getThreeOfAKind(rankCount: Map<string, number>): boolean {
-    return Array.from(rankCount.values()).some((count) => count === 3);
+/**
+ * Helper function to get the key by its value in an object.
+ * @param obj - The object to search.
+ * @param value - The value to find.
+ * @returns The key corresponding to the value, or undefined.
+ */
+function getKeyByValue(
+    obj: { [key: string]: number },
+    value: number
+): string | undefined {
+    return Object.keys(obj).find((key) => obj[key] === value);
 }
 
-// Check for four of a kind
-function getFourOfAKind(rankCount: Map<string, number>): boolean {
-    return Array.from(rankCount.values()).some((count) => count === 4);
-}
+export default PlayerData;
