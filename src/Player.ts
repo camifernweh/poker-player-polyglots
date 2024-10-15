@@ -31,13 +31,17 @@ export class Player {
     // Basic decision-making logic (expand based on hand strength, pot odds, etc.)
     const handStrength = evaluateHand(player.hole_cards, gameState.community_cards);
 
+    console.log('handStrength', handStrength) /* todo: Don't forget to remove */
     if (handStrength > 50) {
       // Raise if hand strength is strong
+      console.log('betCallback = ', current_buy_in + minimum_raise) /* todo: Don't forget to remove */
       betCallback(current_buy_in + minimum_raise);
     } else if (handStrength > 20) {
+      console.log('betCallback = ', callAmount) /* todo: Don't forget to remove */
       // Call if hand strength is moderate
       betCallback(callAmount);
     } else {
+      console.log('betCallback = ', 0) /* todo: Don't forget to remove */
       // Fold if hand is weak (bet 0)
       betCallback(0);
     }
