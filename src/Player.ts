@@ -30,10 +30,8 @@ type Card = {
 };
 
 export class Player {
-    // Track opponent aggression levels
     private opponentAggression: { [id: number]: number } = {};
 
-    // Bet request method
     public betRequest(
         gameState: GameState,
         betCallback: (bet: number) => void
@@ -45,6 +43,7 @@ export class Player {
             in_action,
             community_cards,
         } = gameState;
+
         const player = players[in_action];
         const playerBet = player.bet;
         const callAmount = current_buy_in - playerBet;
@@ -53,89 +52,61 @@ export class Player {
         const isPreFlop = community_cards.length === 0;
         const handStrength = evaluateHand(player.hole_cards, community_cards);
 
-        // Determine player's position at the table
-        const position = this.getPosition(in_action, players.length);
-
-        // Adjust strategy based on pre-flop or post-flop
+        // Pre-flop strategy
         if (isPreFlop) {
-            this.preFlopStrategy(
+            this.aggressivePreFlopStrategy(
                 handStrength,
                 callAmount,
                 minimum_raise,
-                betCallback,
-                position
+                betCallback
             );
         } else {
             this.postFlopStrategy(
                 handStrength,
                 callAmount,
                 minimum_raise,
-                betCallback,
-                gameState,
-                position
+                community_cards,
+                betCallback
             );
         }
 
-        // Track opponent behavior after making decisions
+        // Track opponent behavior
         this.trackOpponentBehavior(players);
-
-        // Incorporate opponent-based strategy to adjust betting patterns
-        this.opponentBasedStrategy(
-            this.opponentAggression,
-            handStrength,
-            callAmount,
-            minimum_raise,
-            betCallback
-        );
     }
 
-    // Pre-flop strategy: Play tighter, raise more with strong hands
-    private preFlopStrategy(
+    // Aggressive Pre-Flop Strategy
+    private aggressivePreFlopStrategy(
         handStrength: number,
         callAmount: number,
         minimum_raise: number,
-        betCallback: (bet: number) => void,
-        position: number
+        betCallback: (bet: number) => void
     ): void {
         if (handStrength > 70) {
-            // Raise aggressively with strong hands
-            betCallback(callAmount + minimum_raise * 2);
+            betCallback(callAmount + minimum_raise * 3); // Aggressive raise
         } else if (handStrength > 40) {
-            // Call with moderate hands
-            betCallback(callAmount);
+            betCallback(callAmount + minimum_raise); // Moderate raise
         } else {
-            // Fold weak hands pre-flop
-            betCallback(0);
+            betCallback(0); // Fold weak hands
         }
     }
 
-    // Post-flop strategy: Adjust based on community cards and hand strength
+    // Post-Flop Strategy
     private postFlopStrategy(
         handStrength: number,
         callAmount: number,
         minimum_raise: number,
-        betCallback: (bet: number) => void,
-        gameState: GameState,
-        position: number
+        community_cards: Card[],
+        betCallback: (bet: number) => void
     ): void {
-        const potOdds = this.calculatePotOdds(callAmount, gameState.pot);
-        const bluffOpportunity = this.evaluateBluffOpportunity(
-            handStrength,
-            potOdds
-        );
+        // Example high-risk bluffing strategy based on community cards
+        const isBoardWet = this.isBoardWet(community_cards); // Determine if the board is coordinated
 
-        if (handStrength > 80) {
-            // Strong hand post-flop, raise more
-            betCallback(callAmount + minimum_raise * 2);
+        if (handStrength > 80 || (isBoardWet && handStrength > 50)) {
+            betCallback(callAmount + minimum_raise * 2); // Aggressive raise or bluff
         } else if (handStrength > 50) {
-            // Moderate hand, consider calling or small raise
-            betCallback(callAmount + minimum_raise);
-        } else if (handStrength > 20 && bluffOpportunity) {
-            // Bluffing opportunity based on pot odds and hand strength
-            betCallback(callAmount + minimum_raise);
+            betCallback(callAmount + minimum_raise); // Consider calling
         } else {
-            // Very weak hand, fold
-            betCallback(0);
+            betCallback(0); // Fold weak hands
         }
     }
 
@@ -155,90 +126,22 @@ export class Player {
         });
     }
 
-    // Opponent-based strategy: Adjust betting decisions based on opponents' tendencies
-    private opponentBasedStrategy(
-        opponentAggression: { [id: number]: number },
-        handStrength: number,
-        callAmount: number,
-        minimum_raise: number,
-        betCallback: (bet: number) => void
-    ): void {
-        let aggressiveOpponents = 0;
-        let passiveOpponents = 0;
-
-        // Identify aggressive vs passive opponents
-        Object.keys(opponentAggression).forEach((opponentId) => {
-            if (opponentAggression[parseInt(opponentId)] > 3) {
-                aggressiveOpponents++;
-            } else if (opponentAggression[parseInt(opponentId)] < -3) {
-                passiveOpponents++;
-            }
-        });
-
-        // Adjust strategy based on opponent tendencies
-        if (aggressiveOpponents > passiveOpponents) {
-            // Against aggressive players, play tighter and raise less often unless holding a strong hand
-            if (handStrength > 70) {
-                betCallback(callAmount + minimum_raise * 2); // Strong hand, raise
-            } else if (handStrength > 40) {
-                betCallback(callAmount); // Moderate hand, just call
-            } else {
-                betCallback(0); // Weak hand, fold
-            }
-        } else if (passiveOpponents > aggressiveOpponents) {
-            // Against passive players, exploit by raising more often with moderate hands
-            if (handStrength > 50) {
-                betCallback(callAmount + minimum_raise); // Moderate hand, raise more often
-            } else {
-                betCallback(callAmount); // Weak hand, still call if passive opponents
-            }
-        } else {
-            // Default to the standard strategy if no clear aggressive/passive tendencies
-            if (handStrength > 70) {
-                betCallback(callAmount + minimum_raise * 2); // Strong hand, raise
-            } else if (handStrength > 40) {
-                betCallback(callAmount); // Moderate hand, call
-            } else {
-                betCallback(0); // Weak hand, fold
-            }
-        }
-    }
-
-    // Calculate pot odds
-    private calculatePotOdds(callAmount: number, pot: number): number {
-        return pot > 0 ? callAmount / (pot + callAmount) : 0;
-    }
-
-    // Evaluate bluff opportunities
-    private evaluateBluffOpportunity(
-        handStrength: number,
-        potOdds: number
-    ): boolean {
-        // Example logic for bluffing: bluff if hand strength is low and pot odds are favorable
-        return handStrength < 40 && potOdds < 0.5; // Adjust thresholds based on desired aggressiveness
-    }
-
-    // Get player position at the table
-    private getPosition(playerIndex: number, totalPlayers: number): number {
-        return (playerIndex - totalPlayers) % totalPlayers;
+    // Check if the board is wet (coordinated)
+    private isBoardWet(communityCards: Card[]): boolean {
+        const ranks = communityCards.map((card) => card.rank);
+        const uniqueRanks = new Set(ranks);
+        return uniqueRanks.size <= 3; // Simplified wet board condition
     }
 
     public showdown(gameState: GameState): void {
         const { players, in_action, community_cards } = gameState;
 
-        // Retrieve the hole cards of all players (available at showdown)
         players.forEach((player: PlayerData) => {
             if (player.status === 'active') {
                 console.log(
                     `Player ${player.name}'s hole cards:`,
                     player.hole_cards
                 );
-            }
-        });
-
-        // Evaluate hands for all players and print the results
-        players.forEach((player: PlayerData) => {
-            if (player.status === 'active') {
                 const handStrength = evaluateHand(
                     player.hole_cards,
                     community_cards
@@ -248,17 +151,10 @@ export class Player {
                 );
             }
         });
-
-        // We could add more complex strategies here for learning, but the method doesn't return anything
     }
 }
 
-/**
- * Evaluates the strength of a poker hand.
- * @param holeCards - The player's hole cards.
- * @param communityCards - The community cards on the table.
- * @returns A numerical score representing the hand's strength.
- */
+// Example hand evaluator (simplified for demonstration)
 function evaluateHand(holeCards: Card[] = [], communityCards: Card[]): number {
     const allCards = [...holeCards, ...communityCards];
     const rankCount = countRanks(allCards);
