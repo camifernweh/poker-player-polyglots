@@ -1,26 +1,36 @@
 type GameState = {
-  current_buy_in: number; // The highest bet so far in the current round
-  minimum_raise: number; // The minimum raise required
-  players: PlayerData[]; // List of players in the game
-  in_action: number; // Index of the player whose turn it is
-  community_cards: Card[]; // Cards shared by all players
-  pot: number; // The total size of the pot
+  tournament_id: string;
+  game_id: string;
+  round: number;
+  bet_index: number;
+  small_blind: number;
+  current_buy_in: number;
+  pot: number;
+  minimum_raise: number;
+  dealer: number;
+  orbits: number;
+  in_action: number;
+  players: PlayerData[];
+  community_cards: Card[];
 };
 
 type PlayerData = {
   id: number;
   name: string;
-  stack: number; // The number of chips this player has
-  bet: number; // The number of chips this player has bet in the current round
-  hole_cards: Card[]; // The player's personal hand
+  status: "active" | "folded" | "out";
+  version: string;
+  stack: number;
+  bet: number;
+  hole_cards?: Card[]; // Only present for the player "in_action" or after showdown
 };
 
 type Card = {
-  rank: string; // Card rank: "2", "3", ..., "J", "Q", "K", "A"
-  suit: string; // Card suit: "hearts", "spades", "diamonds", "clubs"
+  rank: string; // Possible values are "2"-"10", "J", "Q", "K", "A"
+  suit: "clubs" | "spades" | "hearts" | "diamonds";
 };
+
 export class Player {
-  public betRequest(gameState: any, betCallback: (bet: number) => void): void {
+    public betRequest(gameState: GameState, betCallback: (bet: number) => void): void {
     const { current_buy_in, minimum_raise, players, in_action, community_cards } = gameState;
     const player = players[in_action];
 
@@ -51,7 +61,7 @@ export class Player {
     }
   }
 
-  public showdown(gameState: any): void {
+  public showdown(gameState: GameState): void {
 
   }
 };
@@ -63,7 +73,7 @@ export class Player {
  * @param communityCards - The community cards on the table.
  * @returns A numerical score representing the hand's strength.
  */
-function evaluateHand(holeCards: Card[], communityCards: Card[]): number {
+function evaluateHand(holeCards: Card[] = [], communityCards: Card[]): number {
   const allCards = [...holeCards, ...communityCards];
   const ranks = allCards.map(card => card.rank);
   const suits = allCards.map(card => card.suit);
