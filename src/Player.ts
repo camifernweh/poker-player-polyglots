@@ -253,7 +253,6 @@ export class Player {
     }
 }
 
-// Example hand evaluator (simplified for demonstration)
 /**
  * Evaluates the strength of a poker hand.
  * @param holeCards - The player's hole cards.
@@ -261,13 +260,128 @@ export class Player {
  * @returns A numerical score representing the hand's strength.
  */
 function evaluateHand(holeCards: Card[] = [], communityCards: Card[]): number {
-    // This is a simplified version; actual hand evaluation would be more complex
-    // Count high cards and pairs for simplicity
-    const ranks = holeCards
-        .map((card) => card.rank)
-        .concat(communityCards.map((card) => card.rank));
-    const uniqueRanks = new Set(ranks);
+    const allCards = [...holeCards, ...communityCards];
+    const rankCount = countRanks(allCards);
+    const suitCount = countSuits(allCards);
+    const isFlush = Object.values(suitCount).some((count) => count >= 5);
+    const isStraight = checkStraight(rankCount);
 
-    // Example scoring logic: more unique ranks indicate a stronger hand
-    return Math.min(uniqueRanks.size * 20, 100); // Arbitrary scaling for hand strength
+    const pairs = getPairs(rankCount);
+    const threeOfAKind = getThreeOfAKind(rankCount);
+    const fourOfAKind = getFourOfAKind(rankCount);
+
+    if (isStraight && isFlush && rankCount.has('A') && rankCount.has('K')) {
+        return 100; // Royal Flush
+    }
+    if (isStraight && isFlush) {
+        return 90; // Straight Flush
+    }
+    if (fourOfAKind) {
+        return 80; // Four of a Kind
+    }
+    if (threeOfAKind && pairs.length > 0) {
+        return 70; // Full House
+    }
+    if (isFlush) {
+        return 60; // Flush
+    }
+    if (isStraight) {
+        return 50; // Straight
+    }
+    if (threeOfAKind) {
+        return 40; // Three of a Kind
+    }
+    if (pairs.length > 1) {
+        return 30; // Two Pair
+    }
+    if (pairs.length === 1) {
+        return 20; // One Pair
+    }
+    return 10; // High Card
+}
+
+// Helper function to count ranks
+function countRanks(cards: Card[]): Map<string, number> {
+    const rankCount = new Map<string, number>();
+    cards.forEach((card) => {
+        rankCount.set(card.rank, (rankCount.get(card.rank) || 0) + 1);
+    });
+    return rankCount;
+}
+
+// Helper function to count suits
+function countSuits(cards: Card[]): Map<string, number> {
+    const suitCount = new Map<string, number>();
+    cards.forEach((card) => {
+        suitCount.set(card.suit, (suitCount.get(card.suit) || 0) + 1);
+    });
+    return suitCount;
+}
+
+// Check for straight hand
+function checkStraight(rankCount: Map<string, number>): boolean {
+    const ranks = Array.from(rankCount.keys())
+        .map((rank) => getRankValue(rank))
+        .sort((a, b) => a - b);
+    for (let i = 0; i < ranks.length - 4; i++) {
+        if (ranks[i + 4] - ranks[i] === 4) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Get the numerical value of card ranks
+function getRankValue(rank: string): number {
+    switch (rank) {
+        case '2':
+            return 2;
+        case '3':
+            return 3;
+        case '4':
+            return 4;
+        case '5':
+            return 5;
+        case '6':
+            return 6;
+        case '7':
+            return 7;
+        case '8':
+            return 8;
+        case '9':
+            return 9;
+        case '10':
+            return 10;
+        case 'J':
+            return 11;
+        case 'Q':
+            return 12;
+        case 'K':
+            return 13;
+        case 'A':
+            return 14; // Ace is high
+        default:
+            return 0;
+    }
+}
+
+// Get pairs from rank counts
+function getPairs(rankCount: Map<string, number>): string[] {
+    const pairs: string[] = [];
+    rankCount.forEach((count, rank) => {
+        if (count === 2) {
+            pairs.push(rank);
+        }
+    });
+    return pairs;
+}
+
+// Check for three of a kind
+function getThreeOfAKind(rankCount: Map<string, number>): boolean {
+    return Array.from(rankCount.values()).some((count) => count === 3);
+}
+
+// Check for four of a kind
+function getFourOfAKind(rankCount: Map<string, number>): boolean {
+    return Array.from(rankCount.values()).some((count) => count === 4);
 }
