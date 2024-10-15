@@ -21,31 +21,34 @@ type Card = {
 };
 export class Player {
   public betRequest(gameState: any, betCallback: (bet: number) => void): void {
-    const { current_buy_in, minimum_raise, players, in_action } = gameState;
+    const { current_buy_in, minimum_raise, players, in_action, community_cards } = gameState;
     const player = players[in_action];
-    const playerBet = player.bet;
 
-    // Calculate the call amount (difference between current buy-in and player's bet)
-    const callAmount = current_buy_in - playerBet;
-
-    // Basic decision-making logic (expand based on hand strength, pot odds, etc.)
-    const handStrength = evaluateHand(player.hole_cards, gameState.community_cards);
-
-    console.log('handStrength', handStrength) /* todo: Don't forget to remove */
-    if (handStrength > 50) {
-      // Raise if hand strength is strong
-      console.log('betCallback = ', current_buy_in + minimum_raise) /* todo: Don't forget to remove */
-      betCallback(current_buy_in + minimum_raise);
-    } else if (handStrength > 20) {
-      console.log('betCallback = ', callAmount) /* todo: Don't forget to remove */
-      // Call if hand strength is moderate
-      betCallback(callAmount);
-    } else {
-      console.log('betCallback = ', 0) /* todo: Don't forget to remove */
-      // Fold if hand is weak (bet 0)
+    if (!player.hole_cards) {
+      // If hole cards are not available, fold by default
       betCallback(0);
     }
 
+    const handStrength = evaluateHand(player.hole_cards, community_cards);
+    const playerBet = player.bet;
+    const callAmount = current_buy_in - playerBet;
+
+    // Define thresholds for decision making
+    const STRONG_HAND = 700;   // Example threshold for strong hands
+    const MODERATE_HAND = 300; // Example threshold for moderate hands
+
+    if (handStrength >= STRONG_HAND) {
+      // Strong hand: Raise
+      const raiseAmount = current_buy_in + minimum_raise;
+      // Ensure the player has enough stack to raise
+      betCallback(Math.min(raiseAmount, player.stack));
+    } else if (handStrength >= MODERATE_HAND) {
+      // Moderate hand: Call
+      betCallback(callAmount <= player.stack ? callAmount : player.stack);
+    } else {
+      // Weak hand: Fold
+      betCallback(0);
+    }
   }
 
   public showdown(gameState: any): void {
