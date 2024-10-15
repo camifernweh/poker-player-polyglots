@@ -20,6 +20,8 @@ app.post('/', (req, res) => {
         res.status(200).send('OK');
     } else if (req.body.action === 'version') {
         res.status(200).send(VERSION);
+    } else if (req.body.action === 'check') {
+        res.status(200).send();
     } else {
         res.status(200).send('OK');
     }
