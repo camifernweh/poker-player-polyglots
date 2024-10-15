@@ -30,35 +30,76 @@ type Card = {
 };
 
 export class Player {
-    public betRequest(gameState: GameState, betCallback: (bet: number) => void): void {
+  // A property to track opponents' aggressive/passive tendencies (basic heuristic)
+  private opponentAggression: { [id: number]: number } = {};
+
+  // Bet request method
+  public betRequest(gameState: GameState, betCallback: (bet: number) => void): void {
     const { current_buy_in, minimum_raise, players, in_action, community_cards } = gameState;
     const player = players[in_action];
-
-    if (!player.hole_cards) {
-      // If hole cards are not available, fold by default
-      betCallback(0);
-    }
-
-    const handStrength = evaluateHand(player.hole_cards, community_cards);
     const playerBet = player.bet;
     const callAmount = current_buy_in - playerBet;
 
-    // Define thresholds for decision making
-    const STRONG_HAND = 700;   // Example threshold for strong hands
-    const MODERATE_HAND = 300; // Example threshold for moderate hands
+    // Pre-flop vs Post-flop handling
+    const isPreFlop = community_cards.length === 0;
+    const handStrength = evaluateHand(player.hole_cards, community_cards);
 
-    if (handStrength >= STRONG_HAND) {
-      // Strong hand: Raise
-      const raiseAmount = current_buy_in + minimum_raise;
-      // Ensure the player has enough stack to raise
-      betCallback(Math.min(raiseAmount, player.stack));
-    } else if (handStrength >= MODERATE_HAND) {
-      // Moderate hand: Call
-      betCallback(callAmount <= player.stack ? callAmount : player.stack);
+    // Adjust strategy based on pre-flop or post-flop
+    if (isPreFlop) {
+      this.preFlopStrategy(handStrength, callAmount, minimum_raise, betCallback);
     } else {
-      // Weak hand: Fold
+      this.postFlopStrategy(handStrength, callAmount, minimum_raise, betCallback);
+    }
+
+    // Track opponent behavior after making decisions
+    this.trackOpponentBehavior(players);
+  }
+
+  // Pre-flop strategy: Play tighter, raise more with strong hands
+  private preFlopStrategy(handStrength: number, callAmount: number, minimum_raise: number, betCallback: (bet: number) => void): void {
+    if (handStrength > 70) {
+      // Raise aggressively with strong hands
+      betCallback(callAmount + minimum_raise * 2);
+    } else if (handStrength > 40) {
+      // Call with moderate hands
+      betCallback(callAmount);
+    } else {
+      // Fold weak hands pre-flop
       betCallback(0);
     }
+  }
+
+  // Post-flop strategy: Adjust based on community cards and hand strength
+  private postFlopStrategy(handStrength: number, callAmount: number, minimum_raise: number, betCallback: (bet: number) => void): void {
+    if (handStrength > 80) {
+      // Strong hand post-flop, raise more
+      betCallback(callAmount + minimum_raise * 2);
+    } else if (handStrength > 50) {
+      // Moderate hand, consider calling or small raise
+      betCallback(callAmount + minimum_raise);
+    } else if (handStrength > 20) {
+      // Weak hand, but maybe call if pot odds are favorable
+      betCallback(callAmount);
+    } else {
+      // Very weak hand, fold
+      betCallback(0);
+    }
+  }
+
+  // Opponent Strategy: Track and adjust for aggressive vs. passive opponents
+  private trackOpponentBehavior(players: PlayerData[]): void {
+    players.forEach((opponent) => {
+      if (opponent.id !== this.opponentAggression[opponent.id]) {
+        this.opponentAggression[opponent.id] = 0;
+      }
+
+      // Basic heuristic: track betting vs folding patterns
+      if (opponent.bet > 0) {
+        this.opponentAggression[opponent.id] += 1; // Aggressive if betting a lot
+      } else {
+        this.opponentAggression[opponent.id] -= 1; // Passive if folding or checking
+      }
+    });
   }
 
   public showdown(gameState: GameState): void {
