@@ -62,8 +62,26 @@ export class Player {
   }
 
   public showdown(gameState: GameState): void {
+    const { players, in_action, community_cards } = gameState;
 
+    // Retrieve the hole cards of all players (available at showdown)
+    players.forEach((player: PlayerData) => {
+      if (player.status === "active") {
+        console.log(`Player ${player.name}'s hole cards:`, player.hole_cards);
+      }
+    });
+
+    // Evaluate hands for all players and print the results
+    players.forEach((player: PlayerData) => {
+      if (player.status === "active") {
+        const handStrength = evaluateHand(player.hole_cards, community_cards);
+        console.log(`Player ${player.name} has hand strength: ${handStrength}`);
+      }
+    });
+
+    // We could add more complex strategies here for learning, but the method doesn't return anything
   }
+
 };
 
 // Example hand evaluator (simplified for demonstration)
