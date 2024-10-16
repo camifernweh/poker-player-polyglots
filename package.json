@@ -9,6 +9,7 @@
         "build": "tsc -p ."
     },
     "dependencies": {
+        "@tensorflow/tfjs": "4.21.0",
         "express": "*"
     },
     "engines": {
