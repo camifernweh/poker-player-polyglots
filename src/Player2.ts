@@ -307,7 +307,7 @@ export class Player {
         // Evaluate hands for all players and print the results
         players.forEach((player: PlayerData) => {
             if (player.status === 'active') {
-                const handStrength = evaluateHand(
+                const handStrength = this.evaluateHand(
                     player.hole_cards,
                     community_cards
                 );
