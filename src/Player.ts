@@ -42,8 +42,11 @@ export class Player {
 
     private loadOpponentAggression(): any {
         try {
-          const filePath = path.resolve(__dirname, '../opponentAggression.json');
-          const data = fs.readFileSync(filePath, 'utf8');
+            const filePath = path.resolve(
+                __dirname,
+                '../opponentAggression.json'
+            );
+            const data = fs.readFileSync(filePath, 'utf8');
             return JSON.parse(data);
         } catch (error) {
             console.error('Error reading opponentAggression.json:', error);
@@ -220,7 +223,10 @@ export class Player {
             }
         });
 
-        console.log('Opponent aggression: ', this.opponentAggression);
+        console.log(
+            'Opponent aggression: ',
+            JSON.stringify(this.opponentAggression)
+        );
 
         // Evaluate hands for all players and print the results
         players.forEach((player: PlayerData) => {
