@@ -9,7 +9,8 @@
         "declaration": true,
         "allowJs": true,
         "checkJs": true,
-        "strict": true
+        "strict": true,
+	"skipLibCheck": true, // Prevents issues from node_modules type checks
     },
     "exclude": [
         "out/*",
