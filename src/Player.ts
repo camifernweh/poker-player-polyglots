@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 type GameState = {
     tournament_id: string;
     game_id: string;
@@ -31,7 +34,22 @@ type Card = {
 
 export class Player {
     // Track opponent aggression levels
-    private opponentAggression: { [id: number]: number } = {};
+    public opponentAggression: { [id: number]: number } = {};
+
+    constructor() {
+        this.opponentAggression = this.loadOpponentAggression();
+    }
+
+    private loadOpponentAggression(): any {
+        try {
+          const filePath = path.resolve(__dirname, '../opponentAggression.json');
+          const data = fs.readFileSync(filePath, 'utf8');
+            return JSON.parse(data);
+        } catch (error) {
+            console.error('Error reading opponentAggression.json:', error);
+            return {};
+        }
+    }
 
     // Bet request method
     public betRequest(
@@ -201,6 +219,8 @@ export class Player {
                 );
             }
         });
+
+        console.log('Opponent aggression: ', this.opponentAggression);
 
         // Evaluate hands for all players and print the results
         players.forEach((player: PlayerData) => {
